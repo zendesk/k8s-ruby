@@ -304,6 +304,25 @@ module K8s
     # @param common_options [Hash] @see #request, merged with the per-request options
     # @return [Array<response_class, Hash, NilClass>]
     def requests(*options, skip_missing: false, skip_forbidden: false, retry_errors: true, **common_options)
+      results = requests_with_errors(*options, retry_errors: retry_errors, **common_options)
+
+      results.map do |result|
+        case result[:error]
+        when nil
+          result[:resource]
+        when K8s::Error::NotFound
+          raise result[:error] unless skip_missing
+
+          nil
+        when K8s::Error::Forbidden
+          raise result[:error] unless skip_forbidden
+
+          nil
+        end
+      end
+    end
+
+    def requests_with_errors(*options, retry_errors: true, **common_options)
       return [] if options.empty? # excon chokes
 
       start = Time.now
@@ -312,37 +331,30 @@ module K8s
       )
       t = Time.now - start
 
-      objects = responses.zip(options).map{ |response, request_options|
+      objects = responses.zip(options).map do |response, request_options|
         response_class = request_options[:response_class] || common_options[:response_class]
 
-        begin
-          parse_response(response, request_options,
-                         response_class: response_class)
-        rescue K8s::Error::NotFound
-          raise unless skip_missing
-
-          nil
-        rescue K8s::Error::Forbidden
-          raise unless skip_forbidden
-
-          nil
-        rescue K8s::Error::ServiceUnavailable => e
-          raise unless retry_errors
-
+        parsed = wrap_errors { parse_response(response, request_options, response_class: response_class) }
+        if retry_errors && parsed[:error] === K8s::Error::ServiceUnavailable
           logger.warn { "Retry #{format_request(request_options)} => HTTP #{e.code} #{e.reason} in #{'%.3f' % t}s" }
 
           # only retry the failed request, not the entire pipeline
-          request(response_class: response_class, **common_options.merge(request_options))
-        rescue
-          nil
+          parsed = wrap_errors { request(response_class: response_class, **common_options.merge(request_options)) }
         end
+        parsed
+      end
+    end
+
+    def wrap_errors
+      {
+        error: nil,
+        resource: yield
       }
     rescue K8s::Error => e
-      logger.warn { "[#{options.map{ |o| format_request(o) }.join ', '}] => HTTP #{e.code} #{e.reason} in #{'%.3f' % t}s" }
-      raise
-    else
-      logger.info { "[#{options.map{ |o| format_request(o) }.join ', '}] => HTTP [#{responses.map(&:status).join ', '}] in #{'%.3f' % t}s" }
-      objects
+      {
+        error: e,
+        resource: nil
+      }
     end
 
     # @return [K8s::API::Version]

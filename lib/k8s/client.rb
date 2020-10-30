@@ -233,7 +233,7 @@ module K8s
         resource_client.create_resource_request(resource)
       end
 
-      @transport.requests(*requests, skip_missing: false)
+      @transport.requests_with_errors(*requests, {})
     end
 
     # @param resource [K8s::Resource]
@@ -290,7 +290,7 @@ module K8s
         resource_client.delete_resource_request(resource, **options)
       end
 
-      @transport.requests(*requests, skip_missing: false)
+      @transport.requests_with_errors(*requests, {})
     end
 
     # @param resource [K8s::Resource]
