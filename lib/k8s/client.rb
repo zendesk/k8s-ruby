@@ -225,6 +225,17 @@ module K8s
       client_for_resource(resource).create_resource(resource)
     end
 
+    # @param resources [Array<K8s::Resource>]
+    # @return [Array<K8s::Resource>]
+    def create_resources(resources)
+      requests = resources.map do |resource|
+        resource_client = client_for_resource(resource)
+        resource_client.create_resource_request(resource)
+      end
+
+      @transport.requests(*requests, skip_missing: false)
+    end
+
     # @param resource [K8s::Resource]
     # @return [K8s::Resource]
     def get_resource(resource)
@@ -271,6 +282,15 @@ module K8s
     # @return [K8s::Resource]
     def delete_resource(resource, **options)
       client_for_resource(resource).delete_resource(resource, **options)
+    end
+
+    def delete_resources(resources, **options)
+      requests = resources.map do |resource|
+        resource_client = client_for_resource(resource)
+        resource_client.delete_resource_request(resource, **options)
+      end
+
+      @transport.requests(*requests, skip_missing: false)
     end
 
     # @param resource [K8s::Resource]

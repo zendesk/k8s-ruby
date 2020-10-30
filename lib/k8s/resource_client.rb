@@ -145,12 +145,18 @@ module K8s
     # @param resource [#metadata] with metadata.namespace and metadata.name set
     # @return [Object] instance of resource_class
     def create_resource(resource)
-      @transport.request(
+      @transport.request(create_resource_request(resource))
+    end
+
+    # @param resource [#metadata] with metadata.namespace and metadata.name set
+    # @return [Object] request object used for K8s::Transport.request
+    def create_resource_request(resource)
+      {
         method: 'POST',
         path: path(namespace: resource.metadata.namespace),
         request_object: resource,
         response_class: @resource_class
-      )
+      }
     end
 
     # @return [Bool]
@@ -309,14 +315,18 @@ module K8s
     # @param propagationPolicy [String, nil] The propagationPolicy to use for the API call. Possible values include “Orphan”, “Foreground”, or “Background”
     # @return [K8s::API::MetaV1::Status]
     def delete(name, namespace: @namespace, propagationPolicy: nil)
-      @transport.request(
+      @transport.request(delete_request(name, namespace: namespace, propagationPolicy: propagationPolicy))
+    end
+
+    def delete_request(name, namespace: @namespace, propagationPolicy: nil)
+      {
         method: 'DELETE',
         path: path(name, namespace: namespace),
         query: make_query(
           'propagationPolicy' => propagationPolicy
         ),
         response_class: @resource_class # XXX: documented as returning Status
-      )
+      }
     end
 
     # @param namespace [String, nil]
@@ -344,6 +354,10 @@ module K8s
     # @return [K8s::API::MetaV1::Status]
     def delete_resource(resource, **options)
       delete(resource.metadata.name, namespace: resource.metadata.namespace, **options)
+    end
+
+    def delete_resource_request(resource, **options)
+      delete_request(resource.metadata.name, namespace: resource.metadata.namespace, **options)
     end
   end
 end

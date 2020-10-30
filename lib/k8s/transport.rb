@@ -333,6 +333,8 @@ module K8s
 
           # only retry the failed request, not the entire pipeline
           request(response_class: response_class, **common_options.merge(request_options))
+        rescue
+          nil
         end
       }
     rescue K8s::Error => e
